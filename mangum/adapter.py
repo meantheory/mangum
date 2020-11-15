@@ -1,6 +1,7 @@
 import base64
 import typing
 import logging
+from http import HTTPStatus
 import urllib.parse
 
 from dataclasses import dataclass, InitVar
@@ -50,6 +51,7 @@ class Mangum:
     log_level: str = "info"
     api_gateway_base_path: typing.Optional[str] = None
     text_mime_types: InitVar[typing.Optional[typing.List[str]]] = None
+    use_alb: bool = False
 
     def __post_init__(self, text_mime_types: typing.Optional[typing.List[str]]) -> None:
         if self.lifespan not in ("auto", "on", "off"):
@@ -156,5 +158,19 @@ class Mangum:
 
             http_cycle = HTTPCycle(scope, text_mime_types=self.text_mime_types)
             response = http_cycle(self.app, initial_body)
+
+            if self.use_alb:
+                """
+                this is a blatant hack to test/understand mangum and
+                load balancer interaction
+                """
+                lookup = {x.value:f"{x.value} {x.phrase}" for x in list(HTTPStatus)}
+                response["statusDescription"] = lookup[response["statusCode"]]
+
+                mvh = {}
+                for k, v in response["headers"].items():
+                    mvh[k] = [v]
+
+                response["multiValueHeaders"] = mvh
 
         return response
